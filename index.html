@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Organigrama Formación</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root { --title-color: #111; }
+@media (prefers-color-scheme: dark) { :root { --title-color: #fff; } }
+body {
+  background: #F0F2F5;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  padding: 24px 0 80px;
+  display: flex;
+  justify-content: center;
+}
+
+#org {
+  position: relative;
+  width: 100vw;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* SVG para líneas */
+#lines {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Nodos */
+.nd {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 1.2px;
+  line-height: 1.2;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1;
+  transition: opacity 0.3s, filter 0.3s;
+  padding: 4px 6px;
+  word-break: break-word;
+}
+
+.nd-dir  { background:#111; color:#fff; font-size:13px; }
+.nd-sib  { background:#fff; border:1.5px solid #D0D5DD; color:#444; font-size:9px; }
+.nd-form { background:#0047FF; color:#fff; font-size:10px; box-shadow:0 4px 16px rgba(0,71,255,0.3); }
+.nd-n2   { background:#1A5FFF; border:1px solid #0040EE; color:#fff; font-size:9px; }
+.nd-n3   { background:#5B8FFF; border:1px solid #3A70FF; color:#fff; font-size:9px; }
+.nd-n4   { background:#A0BFFF; border:1px solid #7FA8FF; color:#003090; font-size:8px; }
+.nd-n5   { background:#D6E4FF; border:1px solid #A0BFFF; color:#003090; font-size:8px; }
+.nd-sm   { font-size:7px !important; padding:3px 3px !important; letter-spacing:0.8px !important; }
+.nd-xs   { font-size:6px !important; letter-spacing:0.5px !important; }
+
+.nd.dimmed { opacity:0.15; filter:grayscale(0.5); pointer-events:none; }
+.nd.hidden { opacity:0; pointer-events:none; }
+
+/* ── OVERVIEW BUTTON ── */
+#btnOverview {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 40px;
+  padding: 10px 22px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  white-space: nowrap;
+}
+#btnOverview.active { background:#0047FF; box-shadow:0 4px 16px rgba(0,71,255,0.4); }
+
+@media print {
+  body { background:#fff; padding:0; overflow:visible; }
+  #btnOverview, #btnPrint, .modal-overlay { display:none !important; }
+  #org { position:relative; width:auto; min-width:0; }
+  @page { size: A3 landscape; margin: 10mm; }
+  .nd { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+}
+
+/* ── RELACIONES UI ── */
+#rel-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a1a2e;
+  border: 1px solid #2ECC71;
+  border-radius: 40px;
+  padding: 8px 14px;
+  z-index: 50;
+  box-shadow: 0 4px 20px rgba(46,204,113,0.2);
+  width: calc(100vw - 48px);
+  max-width: 340px;
+}
+#rel-bar input {
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+#rel-bar input::placeholder { color: rgba(255,255,255,0.35); font-size: 12px; }
+#rel-bar .rel-icon { color: #2ECC71; font-size: 14px; flex-shrink: 0; }
+#rel-bar .rel-clear { color: rgba(255,255,255,0.4); font-size: 16px; cursor: pointer; flex-shrink: 0; line-height:1; }
+/* nodo resaltado relación */
+.nd.rel-highlight { background: #D5F5E3 !important; border: 2px solid #2ECC71 !important; color: #1a6b3c !important; }
+.nd.rel-origen { background: #D5F5E3 !important; border: 2px solid #27AE60 !important; color: #1a6b3c !important; box-shadow: 0 0 0 3px rgba(46,204,113,0.3) !important; }
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.5); z-index:100;
+  align-items:flex-end; justify-content:center;
+}
+.modal-overlay.show { display:flex; }
+.modal {
+  background:#fff; border-radius:16px 16px 0 0;
+  padding:24px 20px 40px; width:100%; max-width:400px;
+  max-height:70vh; overflow-y:auto;
+  animation:slideUp 0.3s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+.modal-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:#111; }
+.modal-close { background:#F0F2F5; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:#555; }
+.modal-body { font-size:13px; color:#aaa; font-style:italic; line-height:1.6; }
+</style>
+</head>
+<body>
+
+<div id="org">
+  <svg id="lines"></svg>
+</div>
+
+<button id="btnOverview" onclick="toggleOverview()">⊞ Vista global</button>
+<button id="btnPrint" onclick="printOverview()" style="display:none; position:fixed; bottom:24px; left:calc(50% + 90px); transform:translateX(-50%); background:#fff; color:#111; border:1.5px solid #D0D5DD; border-radius:40px; padding:10px 20px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; z-index:50; box-shadow:0 4px 16px rgba(0,0,0,0.12); white-space:nowrap;">🖨 Imprimir</button>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">—</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">Contenido pendiente de añadir.</div>
+  </div>
+</div>
+
+<script>
+// ── CONFIGURACIÓN ──
+const W = 64;   // ancho caja
+const H = 44;   // alto caja
+const GAP_Y = 28; // espacio vertical entre niveles
+const GAP_X = 8;  // espacio horizontal entre hermanos
+
+// ── COLOR DE LÍNEAS SEGÚN TEMA ──
+const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+const LINE_COLOR = isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,71,255,0.6)';
+
+
+// Cada nodo: { id, label, cls, children[], x, y, visible, open }
+const tree = {
+  id:'dir', label:'DIRECCIÓN', cls:'nd-dir',
+  children:[
+    { id:'cap',  label:'CAPTACIÓN',    cls:'nd-sib', children:[] },
+    { id:'pre',  label:'PREP.\nFÍSICA', cls:'nd-sib', children:[] },
+    {
+      id:'form', label:'FORMACIÓN', cls:'nd-form',
+      children:[
+        {
+          id:'gd', label:'GESTIÓN\nDEPORTIVA', cls:'nd-n2',
+          children:[
+            {
+              id:'coord', label:'COORD.', cls:'nd-n3',
+              children:[
+                { id:'equi', label:'EQUIPOS',     cls:'nd-n4', children:[
+                  { id:'cts2', label:'CTs', cls:'nd-n5', children:[] }
+                ]},
+                { id:'prom', label:'PROMOCIONES', cls:'nd-n4', children:[] },
+                { id:'edp',  label:'EDP',         cls:'nd-n4', children:[
+                  { id:'cts3', label:'STAFF EDP', cls:'nd-n5', children:[] }
+                ]},
+              ]
+            },
+            {
+              id:'rto', label:'RTO.', cls:'nd-n3',
+              children:[
+                { id:'r1', label:'UR', cls:'nd-n4', children:[
+                  { id:'cts4', label:'CTs', cls:'nd-n5', children:[] }
+                ]},
+                { id:'r2', label:'DATOS Y\nANÁLISIS', cls:'nd-n4', w:50, children:[
+                  { id:'cts5', label:'ANALISTAS', cls:'nd-n5', children:[] }
+                ]},
+              ]
+            },
+          ]
+        },
+        {
+          id:'go', label:'GESTIÓN\nOPERATIVA', cls:'nd-n2',
+          children:[
+            { id:'go1', label:'COORDINACIÓN\nINTERNA', cls:'nd-n3 nd-sm', w:50, children:[
+              { id:'go1a', label:'ADMON',       cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go1b', label:'CAPTACIÓN',   cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go1c', label:'PROCESOS',    cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go1d', label:'METODOL.',    cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+            ]},
+            { id:'go2', label:'SOPORTE\nINTERNO',             cls:'nd-n3 nd-sm', w:50, children:[
+              { id:'go2a', label:'SOPORTE\nSTAFF',      cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go2b', label:'PLATAFORMAS',          cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go2c', label:'FORMACIÓN\nINTERNA',  cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+            ]},
+            { id:'go3', label:'INNOVACIÓN\nY DESARROLLO',     cls:'nd-n3 nd-sm', w:50, children:[
+              { id:'go3a', label:'RM NEXT',              cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go3b', label:'BENCHMARKING', cls:'nd-n4 nd-sm nd-xs', w:50, vertical:true, children:[] },
+              { id:'go3c', label:'NUEVAS\nHERRAMIENTAS', cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+            ]},
+            { id:'go4', label:'INFRAESTR.\nY RECURSOS',       cls:'nd-n3 nd-sm', w:50, children:[
+              { id:'go4a', label:'CAMPOS',     cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go4b', label:'EDIFICIOS',  cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go4c', label:'MATERIALES', cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+            ]},
+            { id:'go5', label:'RELACIONES',  cls:'nd-n3 nd-sm', w:50, children:[
+              { id:'go5a', label:'FUNDACIÓN',          cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go5b', label:'UNIVERSIDAD',        cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+              { id:'go5c', label:'OTRAS\nINSTITUCIONES', cls:'nd-n4 nd-sm', w:50, vertical:true, children:[] },
+            ]},
+          ]
+        },
+      ]
+    },
+    { id:'met',  label:'METODOL.',  cls:'nd-sib', children:[] },
+    { id:'adm',  label:'ADMÓN.',    cls:'nd-sib', children:[] },
+  ]
+};
+
+// ── STATE ──
+const state = {}; // id -> { open, dimmed, visible }
+const positions = {}; // id -> {x, y}
+const elems = {};  // id -> DOM element
+
+const org = document.getElementById('org');
+const svg = document.getElementById('lines');
+
+// ── INIT ──
+function initNode(node, visible) {
+  state[node.id] = { open: false, visible };
+  const el = document.createElement('div');
+  el.className = 'nd ' + node.cls + (visible ? '' : ' hidden');
+  el.id = 'nd_' + node.id;
+  el.innerHTML = node.label.replace(/\n/g,'<br>');
+  el.style.width = (node.w || W) + 'px';
+  el.style.minHeight = H + 'px';
+  el.addEventListener('click', () => handleClick(node.id));
+  org.appendChild(el);
+  elems[node.id] = el;
+  for (const ch of node.children) initNode(ch, false);
+}
+
+function handleClick(id) {
+  const node = findNode(id);
+  if (!node) return;
+  if (node.children.length === 0) {
+    openModal(node.label.replace(/\n/g,' '));
+    return;
+  }
+  const st = state[id];
+
+  // Encuentra el padre para cerrar hermanos abiertos
+  const parent = findParent(id, tree);
+  if (parent) {
+    for (const sib of parent.children) {
+      if (sib.id !== id && state[sib.id].open) {
+        state[sib.id].open = false;
+        closeChildren(sib);
+      }
+    }
+  }
+
+  st.open = !st.open;
+  if (st.open) {
+    openChildren(node);
+  } else {
+    closeChildren(node);
+  }
+  render();
+}
+
+function findParent(id, node, parent=null) {
+  if (node.id === id) return parent;
+  for (const ch of node.children) {
+    const r = findParent(id, ch, node);
+    if (r !== undefined) return r;
+  }
+  return undefined;
+}
+
+function openChildren(node) {
+  const nw = node.w || W;
+  const cx = positions[node.id].x + nw/2;
+  const cy = positions[node.id].y + H;
+  const n = node.children.length;
+
+  // Check if children should be laid out vertically
+  const isVertical = n > 0 && node.children[0].vertical;
+
+  if (isVertical) {
+    // Stack vertically, centered under parent
+    const cw = node.children[0].w || W;
+    const startX = cx - cw/2;
+    let curY = cy + GAP_Y;
+    for (let i=0; i<n; i++) {
+      const ch = node.children[i];
+      positions[ch.id] = { x: startX, y: curY };
+      curY += H + 10;
+      state[ch.id].visible = true;
+      closeChildren(ch);
+    }
+  } else {
+    const totalW = node.children.reduce((sum, ch) => sum + (ch.w || W), 0) + (n-1) * GAP_X;
+    const startX = cx - totalW/2;
+    let curX = startX;
+    for (let i=0; i<n; i++) {
+      const ch = node.children[i];
+      const cw = ch.w || W;
+      positions[ch.id] = { x: curX, y: cy + GAP_Y };
+      curX += cw + GAP_X;
+      state[ch.id].visible = true;
+      closeChildren(ch);
+    }
+  }
+}
+
+function closeChildren(node) {
+  for (const ch of node.children) {
+    state[ch.id].visible = false;
+    state[ch.id].open = false;
+    closeChildren(ch);
+  }
+}
+
+function findNode(id, node=tree) {
+  if (node.id === id) return node;
+  for (const ch of node.children) {
+    const r = findNode(id, ch);
+    if (r) return r;
+  }
+  return null;
+}
+
+// ── RENDER ──
+function render() {
+  // update visibility
+  updateNodeVis(tree);
+  // update lines
+  renderLines();
+  // update org height
+  let maxY = 0;
+  for (const id in positions) {
+    if (state[id].visible) maxY = Math.max(maxY, positions[id].y + H);
+  }
+  org.style.height = (maxY + 40) + 'px';
+  svg.setAttribute('height', org.style.height);
+}
+
+function updateNodeVis(node) {
+  const el = elems[node.id];
+  const st = state[node.id];
+  const pos = positions[node.id];
+  if (pos) {
+    el.style.left = pos.x + 'px';
+    el.style.top  = pos.y + 'px';
+  }
+  el.classList.toggle('hidden', !st.visible);
+  for (const ch of node.children) updateNodeVis(ch);
+}
+
+function renderLines() {
+  svg.innerHTML = '';
+  drawLinesForNode(tree);
+}
+
+function drawLinesForNode(node) {
+  if (!state[node.id].visible) return;
+  const pos = positions[node.id];
+  if (!pos) return;
+  const nw = node.w || W;
+  const px = pos.x + nw/2;
+  const py = pos.y + H;
+
+  const visibleChildren = node.children.filter(ch => state[ch.id].visible);
+
+  // Línea horizontal entre hermanos (solo si no son verticales)
+  const isVerticalGroup = visibleChildren.length > 0 && visibleChildren[0].vertical;
+  if (visibleChildren.length > 1 && !isVerticalGroup) {
+    const midY = py + GAP_Y/2;
+    const firstX = positions[visibleChildren[0].id].x + (visibleChildren[0].w || W)/2;
+    const lastX  = positions[visibleChildren[visibleChildren.length-1].id].x + (visibleChildren[visibleChildren.length-1].w || W)/2;
+    const hline = document.createElementNS('http://www.w3.org/2000/svg','line');
+    hline.setAttribute('x1', firstX); hline.setAttribute('y1', midY);
+    hline.setAttribute('x2', lastX);  hline.setAttribute('y2', midY);
+    hline.setAttribute('stroke', LINE_COLOR);
+    hline.setAttribute('stroke-width', '1.5');
+    
+    hline.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(hline);
+  }
+
+  for (const ch of visibleChildren) {
+    const cp = positions[ch.id];
+    if (!cp) continue;
+    const cw = ch.w || W;
+    const cx = cp.x + cw/2;
+    const cy = cp.y;
+    const midY = py + GAP_Y/2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const d = `M ${px} ${py} L ${px} ${midY} M ${cx} ${midY} L ${cx} ${cy}`;
+    line.setAttribute('d', d);
+    line.setAttribute('stroke', LINE_COLOR);
+    line.setAttribute('stroke-width', '1.5');
+    line.setAttribute('fill', 'none');
+    
+    line.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(line);
+    drawLinesForNode(ch);
+  }
+}
+
+// ── LAYOUT INICIAL ──
+function buildInitialLayout() {
+  // Dirección centrada
+  const centerX = (org.clientWidth || 360) / 2;
+  positions['dir'] = { x: centerX - W/2, y: 24 };
+  state['dir'].visible = true;
+
+  // Nivel 1: 5 hermanos centrados
+  const siblings = tree.children;
+  const n = siblings.length;
+  const totalW1 = n*W + (n-1)*GAP_X;
+  const startX1 = centerX - totalW1/2;
+  const y1 = positions['dir'].y + H + GAP_Y + 16; // +16 para la hline
+  for (let i=0; i<n; i++) {
+    positions[siblings[i].id] = { x: startX1 + i*(W+GAP_X), y: y1 };
+    state[siblings[i].id].visible = true;
+  }
+
+  // sin línea horizontal
+}
+
+// ── OVERVIEW MODE ──
+let overviewActive = false;
+const OV_SCALE = 0.72;        // escala visual de la overview
+const OV_W = Math.round(W * OV_SCALE);
+const OV_GAP_X = 14;
+const OV_GAP_Y = 56;
+const OV_MARGIN = 60;
+
+function ovNodeW(node) { return Math.round((node.w || W) * OV_SCALE); }
+
+function calcSubtreeWidth(node) {
+  const nw = ovNodeW(node) + OV_GAP_X;
+  if (!node.children.length) return nw;
+  const childrenTotal = node.children.reduce((sum, ch) => sum + calcSubtreeWidth(ch), 0);
+  return Math.max(nw, childrenTotal);
+}
+
+function layoutOverview(node, leftBound, y) {
+  const sw = calcSubtreeWidth(node);
+  const nw = ovNodeW(node);
+  const centerX = leftBound + sw / 2;
+  positions[node.id] = { x: centerX - nw/2, y, ovW: nw };
+  state[node.id].visible = true;
+  if (!node.children.length) return;
+  let cur = leftBound;
+  for (const ch of node.children) {
+    layoutOverview(ch, cur, y + Math.round(H * OV_SCALE) + OV_GAP_Y);
+    cur += calcSubtreeWidth(ch);
+  }
+}
+
+function drawOvLinesForNode(node) {
+  if (!state[node.id].visible) return;
+  const pos = positions[node.id];
+  if (!pos) return;
+  const nw = pos.ovW || ovNodeW(node);
+  const nh = Math.round(H * OV_SCALE);
+  const px = pos.x + nw/2;
+  const py = pos.y + nh;
+  const visChildren = node.children.filter(ch => state[ch.id].visible);
+  if (!visChildren.length) return;
+  const midY = py + OV_GAP_Y * 0.38;
+  const LC = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.55)';
+
+  // vertical down from parent
+  _svgLine(px, py, px, midY, LC);
+
+  if (visChildren.length > 1) {
+    const x1 = positions[visChildren[0].id].x + (positions[visChildren[0].id].ovW || ovNodeW(visChildren[0]))/2;
+    const x2 = positions[visChildren[visChildren.length-1].id].x + (positions[visChildren[visChildren.length-1].id].ovW || ovNodeW(visChildren[visChildren.length-1]))/2;
+    _svgLine(x1, midY, x2, midY, LC);
+  }
+
+  for (const ch of visChildren) {
+    const cp = positions[ch.id];
+    if (!cp) continue;
+    const cw = cp.ovW || ovNodeW(ch);
+    const cx = cp.x + cw/2;
+    _svgLine(cx, midY, cx, cp.y, LC);
+    drawOvLinesForNode(ch);
+  }
+}
+
+function _svgLine(x1, y1, x2, y2, color) {
+  const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+  l.setAttribute('stroke', color);
+  l.setAttribute('stroke-width','1.2');
+  l.setAttribute('stroke-linecap','round');
+  svg.appendChild(l);
+}
+
+function updateOvNodeSizes() {
+  // Temporarily resize all node elements for overview
+  function resizeNode(node) {
+    const el = elems[node.id];
+    if (!el) return;
+    const nw = ovNodeW(node);
+    el.style.width = nw + 'px';
+    el.style.minHeight = Math.round(H * OV_SCALE) + 'px';
+    el.style.fontSize = Math.round(parseInt(el.style.fontSize || 9) * OV_SCALE * 0.9) + 'px';
+    for (const ch of node.children) resizeNode(ch);
+  }
+  resizeNode(tree);
+}
+
+function restoreNodeSizes() {
+  function restoreNode(node) {
+    const el = elems[node.id];
+    if (!el) return;
+    el.style.width = (node.w || W) + 'px';
+    el.style.minHeight = H + 'px';
+    el.style.fontSize = '';
+    for (const ch of node.children) restoreNode(ch);
+  }
+  restoreNode(tree);
+}
+
+function openOverview() {
+  overviewActive = true;
+  document.getElementById('btnOverview').textContent = '✕ Cerrar';
+  document.getElementById('btnOverview').classList.add('active');
+  document.getElementById('btnPrint').style.display = 'block';
+
+  showAllNodes(tree);
+  updateOvNodeSizes();
+
+  const totalW = calcSubtreeWidth(tree);
+  const canvasW = totalW + OV_MARGIN * 2;
+
+  layoutOverview(tree, OV_MARGIN, 32);
+
+  // Calc max height
+  let maxY = 0;
+  for (const id in positions) {
+    if (state[id] && state[id].visible) maxY = Math.max(maxY, positions[id].y + H);
+  }
+  const canvasH = maxY + 80;
+
+  org.style.width = canvasW + 'px';
+  org.style.minWidth = canvasW + 'px';
+  org.style.height = canvasH + 'px';
+  svg.setAttribute('width', canvasW);
+  svg.setAttribute('height', canvasH);
+
+  // Update node positions
+  updateNodeVis(tree);
+
+  // Draw overview lines
+  svg.innerHTML = '';
+  drawOvLinesForNode(tree);
+
+  document.body.style.overflowX = 'auto';
+  document.body.style.overflowY = 'auto';
+
+  // Scroll to center
+  setTimeout(() => {
+    const scrollLeft = Math.max(0, (canvasW - window.innerWidth) / 2);
+    window.scrollTo({ left: scrollLeft, top: 0, behavior: 'instant' });
+  }, 50);
+}
+
+function showAllNodes(node) {
+  state[node.id].visible = true;
+  state[node.id].open = true;
+  for (const ch of node.children) showAllNodes(ch);
+}
+
+function closeOverview() {
+  overviewActive = false;
+  document.getElementById('btnOverview').textContent = '⊞ Vista global';
+  document.getElementById('btnOverview').classList.remove('active');
+  document.getElementById('btnPrint').style.display = 'none';
+  restoreNodeSizes();
+  org.style.width = '100vw';
+  org.style.minWidth = '';
+  org.style.height = '';
+  document.body.style.overflowX = '';
+  document.body.style.overflowY = '';
+  resetAllState(tree);
+  state['dir'].visible = true;
+  buildInitialLayout();
+  render();
+}
+
+function resetAllState(node) {
+  state[node.id].open = false;
+  state[node.id].visible = false;
+  for (const ch of node.children) resetAllState(ch);
+}
+
+function toggleOverview() {
+  overviewActive ? closeOverview() : openOverview();
+}
+
+function printOverview() {
+  if (!overviewActive) openOverview();
+  setTimeout(() => window.print(), 300);
+}
+
+// ── MODAL ──
+function openModal(name) {
+  document.getElementById('modalTitle').textContent = name;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+function closeModalOutside(e) { if(e.target===document.getElementById('modalOverlay')) closeModal(); }
+
+// ── START ──
+initNode(tree, true);
+buildInitialLayout();
+render();
+</script>
+
+</body>
+</html>
